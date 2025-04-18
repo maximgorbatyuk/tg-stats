@@ -1,13 +1,14 @@
-﻿namespace TgStatsApp.Models;
+﻿using TdLib;
+
+namespace TgStatsApp.Models;
 
 public record TelegramChatInfo
 {
     public TelegramChatInfo(
-        long id,
-        string title)
+        TdApi.Chat chat)
     {
-        Id = id;
-        Title = title;
+        Id = chat.Id;
+        Title = chat.Title;
     }
 
     public long Id { get; }

@@ -37,7 +37,7 @@ public class TelegramApiWrapper : IDisposable
             return false;
         }
 
-        return await TryExecuteAsync<bool>(async client =>
+        var result = await TryExecuteAsync<bool>(async client =>
         {
             var authorization = await _client.ExecuteAsync(
                 new TdApi.SetTdlibParameters
@@ -51,11 +51,13 @@ public class TelegramApiWrapper : IDisposable
 
             return true;
         });
+
+        return result.Result;
     }
 
     public async Task<bool> SendPhoneAuthCodeAsync()
     {
-        var currentAuthorizationState = await TryExecuteAsync<TdApi.AuthorizationState>(async client =>
+        var currentAuthorizationStateResponse = await TryExecuteAsync<TdApi.AuthorizationState>(async client =>
         {
             var authState = await _client.ExecuteAsync(
                 new TdApi.GetAuthorizationState());
@@ -63,21 +65,23 @@ public class TelegramApiWrapper : IDisposable
             return authState;
         });
         
-        if (currentAuthorizationState is TdApi.AuthorizationState.AuthorizationStateWaitTdlibParameters)
+        if (currentAuthorizationStateResponse.Result is TdApi.AuthorizationState.AuthorizationStateWaitTdlibParameters)
         {
             AnsiConsole.MarkupLine("[red]Please initialize the Telegram API first![/]");
             return false;
         }
         
-        if (currentAuthorizationState is TdApi.AuthorizationState.AuthorizationStateReady)
+        if (currentAuthorizationStateResponse.Result is TdApi.AuthorizationState.AuthorizationStateReady)
         {
-            _user = await TryExecuteAsync<TdApi.User>(async client =>
+            var getUserResult = await TryExecuteAsync<TdApi.User>(async client =>
             {
                 var userInfo = await _client.ExecuteAsync(
                     new TdApi.GetMe());
 
                 return userInfo;
             });
+
+            _user = getUserResult.Result;
 
             AnsiConsole.MarkupLine("[green]Already authorized![/]");
             DisplayUser();
@@ -108,7 +112,7 @@ public class TelegramApiWrapper : IDisposable
             return true;
         });
 
-        if (!phoneAuthResult)
+        if (!phoneAuthResult.IsSuccess)
         {
             AnsiConsole.MarkupLine("[red]Failed to send phone authentication code![/]");
             return false;
@@ -134,7 +138,7 @@ public class TelegramApiWrapper : IDisposable
             return true;
         });
         
-        if (!verificationResult)
+        if (!verificationResult.IsSuccess)
         {
             AnsiConsole.MarkupLine("[red]Failed to verify phone authentication code![/]");
             return false;
@@ -148,7 +152,7 @@ public class TelegramApiWrapper : IDisposable
             return authState;
         });
 
-        if (authenticationState is TdApi.AuthorizationState.AuthorizationStateWaitPassword)
+        if (authenticationState.Result is TdApi.AuthorizationState.AuthorizationStateWaitPassword)
         {
             var password = _configuration["UserPassword"]?.Trim();
             if (string.IsNullOrEmpty(password))
@@ -174,7 +178,8 @@ public class TelegramApiWrapper : IDisposable
                 return true;
             });
             
-            if (!passwordResult)
+            if (!passwordResult.IsSuccess ||
+                !passwordResult.Result)
             {
                 AnsiConsole.MarkupLine("[red]Failed to verify password![/]");
                 return false;
@@ -188,7 +193,7 @@ public class TelegramApiWrapper : IDisposable
                 return authState;
             });
             
-            if (authenticationState is TdApi.AuthorizationState.AuthorizationStateReady authReady)
+            if (authenticationState.Result is TdApi.AuthorizationState.AuthorizationStateReady authReady)
             {
                 AnsiConsole.MarkupLine("[green]Password authentication successful![/]");
             }
@@ -198,14 +203,16 @@ public class TelegramApiWrapper : IDisposable
                 return false;
             }
         }
-
-        _user = await TryExecuteAsync<TdApi.User>(async client =>
+        
+        var userResponse = await TryExecuteAsync<TdApi.User>(async client =>
         {
             var userInfo = await _client.ExecuteAsync(
                 new TdApi.GetMe());
 
             return userInfo;
         });
+
+        _user = userResponse.Result;
 
         if (_user == null)
         {
@@ -225,7 +232,7 @@ public class TelegramApiWrapper : IDisposable
                 "User is not authenticated. Please authenticate first.");
         }
         
-        var mainChatList = await TryExecuteAsync<TdApi.Chats>(async client =>
+        var mainChatListResponse = await TryExecuteAsync<TdApi.Chats>(async client =>
             await _client.ExecuteAsync(
                 new TdApi.GetChats
                 {
@@ -233,14 +240,15 @@ public class TelegramApiWrapper : IDisposable
                     ChatList = new TdApi.ChatList.ChatListMain(),
                 }));
         
-        if (mainChatList == null)
+        if (mainChatListResponse == null ||
+            !mainChatListResponse.IsSuccess)
         {
             AnsiConsole.MarkupLine("[red]Failed to get chat list![/]");
             return new List<TelegramChatInfo>(0);
         }
 
         var result = new List<TelegramChatInfo>();
-        foreach (var chatId in mainChatList.ChatIds)
+        foreach (var chatId in mainChatListResponse.Result.ChatIds)
         {
             var chat = await _client.ExecuteAsync(
                 new TdApi.GetChat
@@ -251,10 +259,7 @@ public class TelegramApiWrapper : IDisposable
             var chatType = chat.Type;
             if (chatType is TdApi.ChatType.ChatTypeSupergroup)
             {
-                result.Add(
-                    new TelegramChatInfo(
-                        chat.Id,
-                        chat.Title));
+                result.Add(new TelegramChatInfo(chat));
             }
         }
 
@@ -266,9 +271,9 @@ public class TelegramApiWrapper : IDisposable
                     ChatList = new TdApi.ChatList.ChatListArchive(),
                 }));
 
-        if (archiveChatList != null && archiveChatList.ChatIds.Length > 0)
+        if (archiveChatList != null && archiveChatList.Result.ChatIds.Length > 0)
         {
-            foreach (var chatId in archiveChatList.ChatIds)
+            foreach (var chatId in archiveChatList.Result.ChatIds)
             {
                 var chat = await _client.ExecuteAsync(
                     new TdApi.GetChat
@@ -279,10 +284,7 @@ public class TelegramApiWrapper : IDisposable
                 var chatType = chat.Type;
                 if (chatType is TdApi.ChatType.ChatTypeSupergroup)
                 {
-                    result.Add(
-                        new TelegramChatInfo(
-                            chat.Id,
-                            chat.Title));
+                    result.Add(new TelegramChatInfo(chat));
                 }
             }
         }
@@ -290,83 +292,52 @@ public class TelegramApiWrapper : IDisposable
         return result;
     }
 
-    public async Task GetStatsAsync(
-        TelegramChatInfo selectedChannel)
+    public async Task<string> GetMessageLinkAsync(
+        long chatId,
+        long messageId)
     {
-        var messages = new List<TdApi.Message>();
-        var channelMessages = await TryExecuteAsync<TdApi.Messages>(async client =>
-            await _client.ExecuteAsync(
-                new TdApi.GetChatHistory()
-                {
-                    ChatId = selectedChannel.Id,
-                    Limit = 50,
-                    Offset = 0,
-                }));
-
-        if (channelMessages == null)
-        {
-            AnsiConsole.MarkupLine("[red]Failed to get chat list![/]");
-            return;
-        }
-
-        if (channelMessages.Messages_.Length == 1)
-        {
-            messages.Add(channelMessages.Messages_[0]);
-
-            var moreMessages = await TryExecuteAsync<TdApi.Messages>(async client =>
-                await _client.ExecuteAsync(
-                    new TdApi.GetChatHistory()
-                    {
-                        ChatId = selectedChannel.Id,
-                        FromMessageId = channelMessages.Messages_[0].Id,
-                        Limit = 100,
-                        Offset = 0,
-                    }));
-
-            if (moreMessages != null && moreMessages.Messages_.Length > 0)
+        var result = await TryExecuteAsync(c =>
+            c.ExecuteAsync(new TdApi.GetMessageLink()
             {
-                messages.AddRange(moreMessages.Messages_);
-            }
+                ChatId = chatId,
+                MessageId = messageId,
+            }));
+        
+        if (result.IsSuccess)
+        {
+            return result.Result.Link;
         }
 
-        var messagesToBeProcessed = messages
-            .Where(m =>
-                m.Content is TdApi.MessageContent.MessageText or TdApi.MessageContent.MessagePhoto)
-            .ToList();
-        
-        var latestMessageDate = new UnixDate(messagesToBeProcessed
-            .Select(m => m.Date)
-            .Max()).DateTime;
-
-        var earliestMessageDate = new UnixDate(messagesToBeProcessed
-            .Select(m => m.Date)
-            .Min()).DateTime;
-
-        AnsiConsole.MarkupLine($"[green]Total messages: {messagesToBeProcessed.Count}[/]");
-        AnsiConsole.MarkupLine($"[green]Total photos: {messagesToBeProcessed.Count(m => m.Content is TdApi.MessageContent.MessagePhoto)}[/]");
-        AnsiConsole.MarkupLine($"[green]Total text messages: {messagesToBeProcessed.Count(m => m.Content is TdApi.MessageContent.MessageText)}[/]");
-
-        AnsiConsole.MarkupLine($"[green]Earliest message date: {earliestMessageDate}[/]");
-        AnsiConsole.MarkupLine($"[green]Latest message date: {latestMessageDate}[/]");
+        return null;
     }
 
-    private async Task<TResult> TryExecuteAsync<TResult>(
+    public async Task<ApiResponse<TResult>> TryExecuteAsync<TResult>(
         Func<TdClient, Task<TResult>> func)
     {
         try
         {
-            return await func(_client);
+            var result = await func(_client);
+            return new ApiResponse<TResult>(result, null);
+        }
+        catch (TdLib.TdException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Telegram API error: {ErrorMessage}",
+                ex.Message);
+
+            return new ApiResponse<TResult>(default, ex.Message);
         }
         catch (Exception e)
         {
             _logger.LogError(
                 e,
                 "Error executing TdLib function");
-        }
 
-        return default;
+            return new ApiResponse<TResult>(default, e.Message);
+        }
     }
-    
+
     public async Task LogoutAsync()
     {
         if (_user == null)

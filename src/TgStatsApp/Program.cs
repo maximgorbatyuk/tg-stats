@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
+using TgStatsApp.RequestProcessors;
 
 namespace TgStatsApp;
 
@@ -89,7 +90,9 @@ public abstract class Program
                         continue;
                     }
 
-                    await tgClient.GetStatsAsync(selectedChannel);
+                    await new GetStatsCommandProcessor(tgClient)
+                        .Handle(selectedChannel);
+
                     continue;
 
                 case ExitOption:
