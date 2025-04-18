@@ -10,10 +10,11 @@ namespace TgStatsApp;
 
 public abstract class Program
 {
-    private const string ShowSettings = "Show settings";
-    private const string AuthorizeInTG = "Authorize in TG";
-    private const string GetChannelsList = "Get Channels list";
-    private const string ExitOption = "Exit";
+    private const string GithubLink = "https://github.com/maximgorbatyuk/tg-stats";
+
+    private const string AuthorizeInTG = "1. Авторизация в телеграм";
+    private const string GetChannelsList = "2. Список каналов";
+    private const string ExitOption = "Выход";
     
     public static async Task Main(
         string[] args)
@@ -21,8 +22,6 @@ public abstract class Program
         AnsiConsole.Write(
             new FigletText("TG Stats 3000")
                 .Color(Color.Green));
-
-        AnsiConsole.WriteLine("TG Stats 3000 greeting you!");
 
         var configuration = new ConfigurationBuilder()
             .SetBasePath(
@@ -40,44 +39,45 @@ public abstract class Program
         using var tgClient = new TelegramApiWrapper(
             configuration,
             serviceCollection.BuildServiceProvider().GetService<ILogger<TelegramApiWrapper>>());
-        
+
+        AnsiConsole.WriteLine("TG Stats 3000 приветствует вас!");
+        AnsiConsole.MarkupLine("Это приложение для получения статистики по выбранному каналу в Telegram.");
+        AnsiConsole.MarkupLine($"Исходный код доступен по ссылке: {GithubLink}");
+        AnsiConsole.MarkupLine("Для начала вам необходимо авторизоваться с помощью телефона, кода верификации и пароля.");
+
         var exitRequested = false;
         do
         {
             var selectedOption = AnsiConsole.Prompt(new SelectionPrompt<string>()
-                .Title("What do you want to do? Please select [green]option[/]?")
+                .Title("Что вы хотите сделать? Выберите [green]опцию:[/]?")
                 .AddChoices(
-                    ShowSettings,
                     AuthorizeInTG,
                     GetChannelsList,
                     ExitOption));
 
             switch (selectedOption)
             {
-                case ShowSettings:
-                    continue;
-                
                 case AuthorizeInTG:
                     var initializeResult = await tgClient.InitializeAsync();
                     if (!initializeResult)
                     {
-                        AnsiConsole.MarkupLine("[red]Failed to initialize Telegram API![/]");
+                        AnsiConsole.MarkupLine("[red]Ошибка при инициализации библиотеки![/]");
                         continue;
                     }
 
-                    await tgClient.SendPhoneAuthCodeAsync();
+                    await tgClient.LoginAsync();
                     continue;
                 
                 case GetChannelsList:
                     var channels = await tgClient.GetChannelsListAsync();
                     if (channels.Count == 0)
                     {
-                        AnsiConsole.MarkupLine("[yellow]You have no channels![/]");
+                        AnsiConsole.MarkupLine("[yellow]У вас нет подписок на каналы![/]");
                         continue;
                     }
 
                     var selectedChat = AnsiConsole.Prompt(new SelectionPrompt<string>()
-                        .Title("Select a channel to show stats:")
+                        .Title("Выберите канал для формирования статистики:")
                         .AddChoices(channels
                             .Select(c => c.AsSelectOption)));
 
@@ -86,7 +86,7 @@ public abstract class Program
                     
                     if (selectedChannel == null)
                     {
-                        AnsiConsole.MarkupLine("[red]Failed to select channel![/]");
+                        AnsiConsole.MarkupLine("[red]Ошибка при выборе канала![/]");
                         continue;
                     }
 
@@ -96,13 +96,13 @@ public abstract class Program
                     continue;
 
                 case ExitOption:
-                    AnsiConsole.MarkupLine("[yellow]Exiting...[/]");
+                    AnsiConsole.MarkupLine("[yellow]Выход...[/]");
                     await tgClient.LogoutAsync();
                     exitRequested = true;
                     break;
             }
         } while (!exitRequested);
 
-        AnsiConsole.WriteLine("Goodbye!");
+        AnsiConsole.WriteLine("Прощайте!");
     }
 }

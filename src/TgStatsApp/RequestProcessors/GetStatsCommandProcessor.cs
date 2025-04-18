@@ -40,6 +40,8 @@ public class GetStatsCommandProcessor
             .ToList();
 
         AnsiConsole.MarkupLine($"В среднем в день публиковали [green]{averagePostsPerDay:F2}[/] постов");
+        AnsiConsole.WriteLine();
+
         AnsiConsole.MarkupLine($"Смешных мемов: [yellow]0[/], непонятных: [yellow]{messages.Count - 1}[/]");
         AnsiConsole.MarkupLine($"Постов про среду и лягушку: [green]{wednesdayPosts.Count}[/]");
         AnsiConsole.MarkupLine($"Постов про Марину (четверг): [green]{thursdayPosts.Count}[/]");
@@ -94,6 +96,8 @@ public class GetStatsCommandProcessor
 
             AnsiConsole.MarkupLine($"Больше всего комментариев ({mostCommentedPost!.RepliesCount}) у поста [green]{link}[/]");
         }
+
+        AnsiConsole.WriteLine();
     }
 
     private async Task<List<MessageDetails>> GetMessagesForThisMonthAsync(

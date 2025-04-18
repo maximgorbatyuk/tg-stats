@@ -14,6 +14,7 @@ public class TelegramApiWrapper : IDisposable
     private readonly ILogger<TelegramApiWrapper> _logger;
 
     private TdApi.User _user;
+    private bool _initialized;
 
     public TelegramApiWrapper(
         IConfiguration configuration,
@@ -27,6 +28,11 @@ public class TelegramApiWrapper : IDisposable
     
     public async Task<bool> InitializeAsync()
     {
+        if (_initialized)
+        {
+            return true;
+        }
+
         var appVersion = _configuration["AppVersion"];
         var appId = _configuration.GetValue<int>("Telegram:AppId");
         var apiHash = _configuration["Telegram:AppHash"];
@@ -52,10 +58,11 @@ public class TelegramApiWrapper : IDisposable
             return true;
         });
 
+        _initialized = result.IsSuccess;
         return result.Result;
     }
 
-    public async Task<bool> SendPhoneAuthCodeAsync()
+    public async Task<bool> LoginAsync()
     {
         var currentAuthorizationStateResponse = await TryExecuteAsync<TdApi.AuthorizationState>(async client =>
         {
@@ -64,13 +71,12 @@ public class TelegramApiWrapper : IDisposable
 
             return authState;
         });
-        
+
         if (currentAuthorizationStateResponse.Result is TdApi.AuthorizationState.AuthorizationStateWaitTdlibParameters)
         {
-            AnsiConsole.MarkupLine("[red]Please initialize the Telegram API first![/]");
-            return false;
+            await InitializeAsync();
         }
-        
+
         if (currentAuthorizationStateResponse.Result is TdApi.AuthorizationState.AuthorizationStateReady)
         {
             var getUserResult = await TryExecuteAsync<TdApi.User>(async client =>
@@ -83,22 +89,17 @@ public class TelegramApiWrapper : IDisposable
 
             _user = getUserResult.Result;
 
-            AnsiConsole.MarkupLine("[green]Already authorized![/]");
+            AnsiConsole.MarkupLine("[green]Пользователь уже авторизован![/]");
             DisplayUser();
             return true;
         }
 
-        var phoneNumber = _configuration["UserPhone"]?.Trim();
-        if (string.IsNullOrEmpty(phoneNumber))
+        var phoneNumber = AnsiConsole.Ask<string>("Введите номер телефона ([yellow]+77011112233[/]):")?.Trim();
+
+        if (string.IsNullOrWhiteSpace(phoneNumber))
         {
-            phoneNumber = AnsiConsole.Ask<string>(
-                "Please enter your phone number ([yellow]+77011112233[/]):")?.Trim();
-            
-            if (string.IsNullOrWhiteSpace(phoneNumber))
-            {
-                AnsiConsole.MarkupLine("[red]Phone number cannot be empty![/]");
-                return false;
-            }
+            AnsiConsole.MarkupLine("[red]Телефон не указан![/]");
+            return false;
         }
 
         var phoneAuthResult = await TryExecuteAsync<bool>(async client =>
@@ -114,16 +115,16 @@ public class TelegramApiWrapper : IDisposable
 
         if (!phoneAuthResult.IsSuccess)
         {
-            AnsiConsole.MarkupLine("[red]Failed to send phone authentication code![/]");
+            AnsiConsole.MarkupLine("[red]Ошибка при отправке запроса на код верификации![/]");
             return false;
         }
 
         var phoneCode = AnsiConsole.Ask<string>(
-            "Please enter the code sent to your phone ([yellow]12345[/]):")?.Trim();
+            "Введите код авторизации, отправленный вам телеграмом: ([yellow]12345[/]):")?.Trim();
         
         if (string.IsNullOrWhiteSpace(phoneCode))
         {
-            AnsiConsole.MarkupLine("[red]Phone code cannot be empty![/]");
+            AnsiConsole.MarkupLine("[red]Код не введен![/]");
             return false;
         }
 
@@ -140,7 +141,7 @@ public class TelegramApiWrapper : IDisposable
         
         if (!verificationResult.IsSuccess)
         {
-            AnsiConsole.MarkupLine("[red]Failed to verify phone authentication code![/]");
+            AnsiConsole.MarkupLine("[red]Ошибка верификации кода![/]");
             return false;
         }
 
@@ -158,11 +159,11 @@ public class TelegramApiWrapper : IDisposable
             if (string.IsNullOrEmpty(password))
             {
                 password = AnsiConsole.Ask<string>(
-                    "Please enter your password ([yellow]password[/]):")?.Trim();
+                    "Введите ваш пароль: ([yellow]password[/]):")?.Trim();
                 
                 if (string.IsNullOrWhiteSpace(password))
                 {
-                    AnsiConsole.MarkupLine("[red]Password cannot be empty![/]");
+                    AnsiConsole.MarkupLine("[red]Пароль не введен![/]");
                     return false;
                 }
             }
@@ -181,7 +182,7 @@ public class TelegramApiWrapper : IDisposable
             if (!passwordResult.IsSuccess ||
                 !passwordResult.Result)
             {
-                AnsiConsole.MarkupLine("[red]Failed to verify password![/]");
+                AnsiConsole.MarkupLine("[red]Ошибка верификации пароля![/]");
                 return false;
             }
 
@@ -195,7 +196,7 @@ public class TelegramApiWrapper : IDisposable
             
             if (authenticationState.Result is TdApi.AuthorizationState.AuthorizationStateReady authReady)
             {
-                AnsiConsole.MarkupLine("[green]Password authentication successful![/]");
+                AnsiConsole.MarkupLine("[green]Аутентификация успешна![/]");
             }
             else
             {
@@ -216,7 +217,7 @@ public class TelegramApiWrapper : IDisposable
 
         if (_user == null)
         {
-            AnsiConsole.MarkupLine("[red]Failed to get user information![/]");
+            AnsiConsole.MarkupLine("[red]Ошибка при запросе пользовательских данных![/]");
             return false;
         }
 
@@ -228,10 +229,10 @@ public class TelegramApiWrapper : IDisposable
     {
         if (_user == null)
         {
-            throw new InvalidOperationException(
-                "User is not authenticated. Please authenticate first.");
+            await InitializeAsync();
+            await LoginAsync();
         }
-        
+
         var mainChatListResponse = await TryExecuteAsync<TdApi.Chats>(async client =>
             await _client.ExecuteAsync(
                 new TdApi.GetChats
@@ -243,7 +244,7 @@ public class TelegramApiWrapper : IDisposable
         if (mainChatListResponse == null ||
             !mainChatListResponse.IsSuccess)
         {
-            AnsiConsole.MarkupLine("[red]Failed to get chat list![/]");
+            AnsiConsole.MarkupLine("[red]Ошибка запроса на список каналов/групп![/]");
             return new List<TelegramChatInfo>(0);
         }
 
@@ -356,12 +357,10 @@ public class TelegramApiWrapper : IDisposable
 
     private void DisplayUser()
     {
-        AnsiConsole.MarkupLine($"User ID: [green]{_user.Id}[/]");
-        AnsiConsole.MarkupLine($"User Name: [green]{_user.FirstName} {_user.LastName}[/]");
-        AnsiConsole.MarkupLine($"Phone Number: [green]{_user.PhoneNumber}[/]");
-        AnsiConsole.MarkupLine($"User Type: [green]{_user.Type}[/]");
-        AnsiConsole.MarkupLine($"User active nickname: [green]{_user.Usernames.ActiveUsernames.FirstOrDefault()}[/]");
-        AnsiConsole.MarkupLine("[green]Phone authentication successful![/]");
+        AnsiConsole.MarkupLine($"ID: [green]{_user.Id}[/]");
+        AnsiConsole.MarkupLine($"Телефон: [green]{_user.PhoneNumber}[/]");
+        AnsiConsole.MarkupLine($"Username: [green]{_user.Usernames.ActiveUsernames.FirstOrDefault()}[/]");
+        AnsiConsole.WriteLine();
     }
 
     public void Dispose()
