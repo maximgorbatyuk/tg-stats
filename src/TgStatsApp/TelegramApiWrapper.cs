@@ -1,15 +1,18 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using TdLib;
 using TgStatsApp.Models;
+using TgStatsApp.Settings;
 using TdLogLevel = TdLib.Bindings.TdLogLevel;
 
 namespace TgStatsApp;
 
 public class TelegramApiWrapper : IDisposable
 {
-    private readonly IConfiguration _configuration;
+    private const string AppVersion = "0.1";
+
+    private readonly AppConfiguration _configuration;
     private readonly TdClient _client;
     private readonly ILogger<TelegramApiWrapper> _logger;
 
@@ -20,11 +23,10 @@ public class TelegramApiWrapper : IDisposable
     private string _password;
 
     public TelegramApiWrapper(
-        IConfiguration configuration,
-        ILogger<TelegramApiWrapper> logger)
+        AppConfiguration configuration)
     {
         _configuration = configuration;
-        _logger = logger;
+        _logger = _configuration.ServiceProvider.GetRequiredService<ILogger<TelegramApiWrapper>>();
         _client = new TdClient();
         _client.Bindings.SetLogVerbosityLevel((int)TdLogLevel.Fatal);
     }
@@ -36,32 +38,22 @@ public class TelegramApiWrapper : IDisposable
             return true;
         }
 
-        var appVersion = _configuration["AppVersion"];
-        var appId = _configuration.GetValue<int>("Telegram:AppId");
-        var apiHash = _configuration["Telegram:AppHash"];
-
-        if (appId == 0 || string.IsNullOrWhiteSpace(apiHash))
-        {
-            AnsiConsole.MarkupLine("[red]API ID or API Hash is not set![/]");
-            return false;
-        }
-
         var result = await TryExecuteAsync<bool>(async client =>
         {
             var authorization = await _client.ExecuteAsync(
                 new TdApi.SetTdlibParameters
                 {
-                    ApiId = appId,
-                    ApiHash = apiHash,
+                    ApiId = _configuration.TelegamAppId,
+                    ApiHash = _configuration.TelegamAppHash,
                     DeviceModel = "PC",
                     SystemLanguageCode = "en",
-                    ApplicationVersion = appVersion,
+                    ApplicationVersion = AppVersion,
                 });
 
             return true;
         });
 
-        _initialized = result.IsSuccess;
+        _initialized = result.IsSuccess && result.Result;
         return result.Result;
     }
 

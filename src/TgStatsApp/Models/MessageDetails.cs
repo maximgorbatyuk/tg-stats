@@ -21,11 +21,6 @@ public record MessageDetails
 
     public DateTime Date { get; }
 
-    public string ThreadId =>
-        _messageIdAsString.Length > 4
-            ? _messageIdAsString[3..]
-            : _messageIdAsString;
-
     public bool IsWednesdayPost => Date.DayOfWeek == DayOfWeek.Wednesday;
 
     public bool IsThursdayPost => Date.DayOfWeek == DayOfWeek.Thursday;

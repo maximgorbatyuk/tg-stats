@@ -1,10 +1,8 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Spectre.Console;
 using TgStatsApp.RequestProcessors;
+using TgStatsApp.Settings;
 
 namespace TgStatsApp;
 
@@ -23,22 +21,9 @@ public abstract class Program
             new FigletText("TG Stats 3000")
                 .Color(Color.Green));
 
-        var configuration = new ConfigurationBuilder()
-            .SetBasePath(
-                Directory.GetCurrentDirectory())
-            .AddJsonFile("appsettings.json", false, true)
-            .Build();
-        
-        var serviceCollection = new ServiceCollection();
-        serviceCollection.AddLogging(configure =>
-        {
-            configure.AddConsole();
-            configure.SetMinimumLevel(LogLevel.Information);
-        });
+        var appConfig = AppConfiguration.Initialize();
 
-        using var tgClient = new TelegramApiWrapper(
-            configuration,
-            serviceCollection.BuildServiceProvider().GetService<ILogger<TelegramApiWrapper>>());
+        using var tgClient = new TelegramApiWrapper(appConfig);
 
         AnsiConsole.WriteLine("TG Stats 3000 приветствует вас!");
         AnsiConsole.MarkupLine("Это приложение для получения статистики по выбранному каналу в Telegram.");
@@ -92,9 +77,7 @@ public abstract class Program
                         continue;
                     }
 
-                    await new GetStatsCommandProcessor(tgClient)
-                        .Handle(selectedChannel);
-
+                    await new GetStatsCommandProcessor(tgClient, appConfig).Handle(selectedChannel);
                     continue;
 
                 case ExitOption:

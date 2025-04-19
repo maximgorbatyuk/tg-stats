@@ -2,17 +2,21 @@
 using TdLib;
 using TgStatsApp.Helpers;
 using TgStatsApp.Models;
+using TgStatsApp.Settings;
 
 namespace TgStatsApp.RequestProcessors;
 
 public class GetStatsCommandProcessor
 {
     private readonly TelegramApiWrapper _client;
+    private readonly AppConfiguration _configuration;
 
     public GetStatsCommandProcessor(
-        TelegramApiWrapper client)
+        TelegramApiWrapper client,
+        AppConfiguration configuration)
     {
         _client = client;
+        _configuration = configuration;
     }
 
     public async Task Handle(
@@ -43,8 +47,19 @@ public class GetStatsCommandProcessor
         AnsiConsole.WriteLine();
 
         AnsiConsole.MarkupLine($"Смешных мемов: [yellow]0[/], непонятных: [yellow]{messages.Count - 1}[/]");
-        AnsiConsole.MarkupLine($"Постов про среду и лягушку: [green]{wednesdayPosts.Count}[/]");
-        AnsiConsole.MarkupLine($"Постов про Марину (четверг): [green]{thursdayPosts.Count}[/]");
+
+        if (_configuration.DayweekStats.Count > 0)
+        {
+            foreach (var dayweekStats in _configuration.DayweekStats)
+            {
+                var posts = messages
+                    .Where(m => m.Date.DayOfWeek == dayweekStats.DayOfWeek)
+                    .ToList();
+
+                AnsiConsole.MarkupLine($"{dayweekStats.Label}: [green]{posts.Count}[/]");
+            }
+        }
+
         AnsiConsole.WriteLine();
 
         var groupedByWeekdays = messages
