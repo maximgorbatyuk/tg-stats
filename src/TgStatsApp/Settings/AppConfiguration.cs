@@ -35,6 +35,7 @@ public record AppConfiguration
 
         DotNetEnv.Env.TraversePath().Load();
 
+        // For publishing app as self-packaged, you should insert there your env values instead of reading them from ENV.
         var appIdSource = Environment.GetEnvironmentVariable("TELEGRAM_APP_ID");
         var apiHash = Environment.GetEnvironmentVariable("TELEGRAM_APP_HASH");
 
