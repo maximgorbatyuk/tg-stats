@@ -7,6 +7,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Items", "Items", "{8F3172B1
 		publish-for-mac-silicon.sh = publish-for-mac-silicon.sh
 		publish-for-windows.sh = publish-for-windows.sh
 		.env.example = .env.example
+		.env = .env
 	EndProjectSection
 EndProject
 Global
