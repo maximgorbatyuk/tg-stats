@@ -69,7 +69,9 @@ public abstract class Program
                     continue;
                 
                 case GetChannelsList:
-                    var channels = await tgClient.GetChannelsListAsync();
+                    var channels = await new GetChannelsListCommandProcessor(tgClient)
+                        .Handle();
+
                     if (channels.Count == 0)
                     {
                         AnsiConsole.MarkupLine("[yellow]У вас нет подписок на каналы![/]");

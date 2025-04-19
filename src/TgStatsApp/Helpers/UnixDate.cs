@@ -1,4 +1,4 @@
-namespace TgStatsApp;
+namespace TgStatsApp.Helpers;
 
 public record UnixDate
 {

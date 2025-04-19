@@ -16,6 +16,9 @@ public class TelegramApiWrapper : IDisposable
     private TdApi.User _user;
     private bool _initialized;
 
+    private string _phoneNumber;
+    private string _password;
+
     public TelegramApiWrapper(
         IConfiguration configuration,
         ILogger<TelegramApiWrapper> logger)
@@ -94,9 +97,12 @@ public class TelegramApiWrapper : IDisposable
             return true;
         }
 
-        var phoneNumber = AnsiConsole.Ask<string>("Введите номер телефона ([yellow]+77011112233[/]):")?.Trim();
+        if (_phoneNumber == null)
+        {
+            _phoneNumber = AnsiConsole.Ask<string>("Введите номер телефона ([yellow]+77011112233[/]):")?.Trim();
+        }
 
-        if (string.IsNullOrWhiteSpace(phoneNumber))
+        if (string.IsNullOrWhiteSpace(_phoneNumber))
         {
             AnsiConsole.MarkupLine("[red]Телефон не указан![/]");
             return false;
@@ -107,7 +113,7 @@ public class TelegramApiWrapper : IDisposable
             var phoneAuthentication = await _client.ExecuteAsync(
                 new TdApi.SetAuthenticationPhoneNumber
                 {
-                    PhoneNumber = phoneNumber
+                    PhoneNumber = _phoneNumber
                 });
 
             return true;
@@ -155,13 +161,12 @@ public class TelegramApiWrapper : IDisposable
 
         if (authenticationState.Result is TdApi.AuthorizationState.AuthorizationStateWaitPassword)
         {
-            var password = _configuration["UserPassword"]?.Trim();
-            if (string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(_password))
             {
-                password = AnsiConsole.Ask<string>(
+                _password = AnsiConsole.Ask<string>(
                     "Введите ваш пароль: ([yellow]password[/]):")?.Trim();
                 
-                if (string.IsNullOrWhiteSpace(password))
+                if (string.IsNullOrWhiteSpace(_password))
                 {
                     AnsiConsole.MarkupLine("[red]Пароль не введен![/]");
                     return false;
@@ -173,7 +178,7 @@ public class TelegramApiWrapper : IDisposable
                 var passwordAuthentication = await _client.ExecuteAsync(
                     new TdApi.CheckAuthenticationPassword
                     {
-                        Password = password
+                        Password = _password
                     });
 
                 return true;
@@ -225,72 +230,13 @@ public class TelegramApiWrapper : IDisposable
         return true;
     }
 
-    public async Task<List<TelegramChatInfo>> GetChannelsListAsync()
+    public async Task InitializeAppIfNecessaryAsync()
     {
         if (_user == null)
         {
             await InitializeAsync();
             await LoginAsync();
         }
-
-        var mainChatListResponse = await TryExecuteAsync<TdApi.Chats>(async client =>
-            await _client.ExecuteAsync(
-                new TdApi.GetChats
-                {
-                    Limit = 200,
-                    ChatList = new TdApi.ChatList.ChatListMain(),
-                }));
-        
-        if (mainChatListResponse == null ||
-            !mainChatListResponse.IsSuccess)
-        {
-            AnsiConsole.MarkupLine("[red]Ошибка запроса на список каналов/групп![/]");
-            return new List<TelegramChatInfo>(0);
-        }
-
-        var result = new List<TelegramChatInfo>();
-        foreach (var chatId in mainChatListResponse.Result.ChatIds)
-        {
-            var chat = await _client.ExecuteAsync(
-                new TdApi.GetChat
-                {
-                    ChatId = chatId
-                });
-
-            var chatType = chat.Type;
-            if (chatType is TdApi.ChatType.ChatTypeSupergroup)
-            {
-                result.Add(new TelegramChatInfo(chat));
-            }
-        }
-
-        var archiveChatList = await TryExecuteAsync<TdApi.Chats>(async client =>
-            await _client.ExecuteAsync(
-                new TdApi.GetChats
-                {
-                    Limit = 200,
-                    ChatList = new TdApi.ChatList.ChatListArchive(),
-                }));
-
-        if (archiveChatList != null && archiveChatList.Result.ChatIds.Length > 0)
-        {
-            foreach (var chatId in archiveChatList.Result.ChatIds)
-            {
-                var chat = await _client.ExecuteAsync(
-                    new TdApi.GetChat
-                    {
-                        ChatId = chatId
-                    });
-
-                var chatType = chat.Type;
-                if (chatType is TdApi.ChatType.ChatTypeSupergroup)
-                {
-                    result.Add(new TelegramChatInfo(chat));
-                }
-            }
-        }
-
-        return result;
     }
 
     public async Task<string> GetMessageLinkAsync(

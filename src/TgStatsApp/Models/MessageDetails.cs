@@ -1,4 +1,5 @@
 ﻿using TdLib;
+using TgStatsApp.Helpers;
 
 namespace TgStatsApp.Models;
 
@@ -11,8 +12,8 @@ public record MessageDetails
     {
         Message = message;
         Date = new UnixDate(message.Date).DateTime;
-        ViewsCount = message.InteractionInfo.ViewCount;
-        RepliesCount = message.InteractionInfo.ReplyInfo?.ReplyCount ?? 0;
+        ViewsCount = message.InteractionInfo?.ViewCount ?? 0;
+        RepliesCount = message.InteractionInfo?.ReplyInfo?.ReplyCount ?? 0;
         _messageIdAsString = message.Id.ToString();
     }
 
