@@ -29,13 +29,20 @@ public record AppConfiguration
     public static AppConfiguration Initialize()
     {
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(
-                Directory.GetCurrentDirectory())
+            .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", false, true)
             .Build();
 
-        var appId = configuration.GetValue<int>("Telegram:AppId");
-        var apiHash = configuration["Telegram:AppHash"];
+        DotNetEnv.Env.TraversePath().Load();
+
+        var appIdSource = Environment.GetEnvironmentVariable("TELEGRAM_APP_ID");
+        var apiHash = Environment.GetEnvironmentVariable("TELEGRAM_APP_HASH");
+
+        if (appIdSource == null || apiHash == null)
+        {
+            throw new InvalidOperationException("Missing environment variables TELEGRAM_APP_ID and TELEGRAM_APP_HASH");
+        }
+
         var dayweekStats = configuration
             .GetSection("DayweekStats")
             .Get<List<DayweekStatsSettingItem>>();
@@ -52,7 +59,7 @@ public record AppConfiguration
 
         return new AppConfiguration(
             dayweekStats,
-            appId,
+            int.Parse(appIdSource),
             apiHash,
             serviceProvider);
     }

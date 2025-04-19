@@ -55,3 +55,4 @@ nunit-*.xml
 src/.idea
 .DS_Store
 *.user
+src/.env

@@ -2,6 +2,13 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TgStatsApp", "TgStatsApp\TgStatsApp.csproj", "{B8156FF9-17D0-48E2-808C-4B9F5502DA72}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Items", "Items", "{8F3172B1-5D4F-4229-BDBD-B435EF57431E}"
+	ProjectSection(SolutionItems) = preProject
+		publish-for-mac-silicon.sh = publish-for-mac-silicon.sh
+		publish-for-windows.sh = publish-for-windows.sh
+		.env.example = .env.example
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
